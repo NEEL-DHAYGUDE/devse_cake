@@ -62,7 +62,7 @@ HTML_PAGE = """
                     <input type="text" id="custom-text" placeholder="e.g. Happy Birthday" class="w-full p-2 mb-8 bg-[#0B0F19] text-white rounded outline-none border-none">
 
                     <button onclick="renderPreview()" id="render-btn" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded mb-4 transition">Render 3D Preview</button>
-                    <button onclick="goToCheckout()" id="checkout-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded mb-4 transition">Checkout & Order</button>
+                    <button onclick="goToCheckout('builder')" id="checkout-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded mb-4 transition">Checkout & Order</button>
                     <button onclick="trainAI()" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded transition">Generate AI Recommendations</button>
                 </div>
 
@@ -74,6 +74,45 @@ HTML_PAGE = """
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div id="loading-screen" class="screen hidden card p-12 max-w-md mx-auto mt-20 text-center shadow-xl">
+            <h2 class="text-3xl font-bold text-[#00E5FF] mb-6">Neural Network Compiling...</h2>
+            <div class="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+                <div id="progress-bar" class="bg-[#00E5FF] h-4 w-0 transition-all duration-300"></div>
+            </div>
+        </div>
+
+        <div id="recommendation-screen" class="screen hidden max-w-5xl mx-auto">
+            <h1 class="text-3xl font-bold text-[#00E5FF] mb-6">AI Recommendations</h1>
+            <div class="flex flex-col md:flex-row gap-8">
+                
+                <div class="card p-6 flex-1 shadow-lg flex flex-col items-center">
+                    <h2 id="rec1-title" class="text-xl font-bold mb-4 text-center">The Neural Match</h2>
+                    <div class="w-full max-w-[250px] aspect-square bg-[#0B0F19] flex items-center justify-center rounded border border-[#2A3B5C] mb-6">
+                        <p id="rec1-status" class="text-[#00E5FF]">⏳ Rendering...</p>
+                        <img id="rec1-img" class="hidden w-full h-full object-cover rounded">
+                    </div>
+                    <div class="flex gap-2 w-full mt-auto">
+                        <button onclick="goToCheckout('rec1')" class="flex-1 bg-green-500 hover:bg-green-600 font-bold py-2 rounded text-white">Checkout</button>
+                        <button onclick="editRec(1)" class="flex-1 bg-gray-600 hover:bg-gray-500 font-bold py-2 rounded text-white">Modify</button>
+                    </div>
+                </div>
+
+                <div class="card p-6 flex-1 shadow-lg flex flex-col items-center">
+                    <h2 id="rec2-title" class="text-xl font-bold mb-4 text-center">The Premium Evolution</h2>
+                    <div class="w-full max-w-[250px] aspect-square bg-[#0B0F19] flex items-center justify-center rounded border border-[#2A3B5C] mb-6">
+                        <p id="rec2-status" class="text-[#00E5FF]">⏳ Rendering...</p>
+                        <img id="rec2-img" class="hidden w-full h-full object-cover rounded">
+                    </div>
+                    <div class="flex gap-2 w-full mt-auto">
+                        <button onclick="goToCheckout('rec2')" class="flex-1 bg-green-500 hover:bg-green-600 font-bold py-2 rounded text-white">Checkout</button>
+                        <button onclick="editRec(2)" class="flex-1 bg-gray-600 hover:bg-gray-500 font-bold py-2 rounded text-white">Modify</button>
+                    </div>
+                </div>
+
+            </div>
+            <button onclick="showScreen('builder-screen')" class="mt-8 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded transition">← Back to Builder</button>
         </div>
 
         <div id="checkout-screen" class="screen hidden card p-8 max-w-md mx-auto mt-20 text-center shadow-xl">
@@ -98,7 +137,7 @@ HTML_PAGE = """
         let currentUser = "";
         let orderHistory = [];
         let bakeriesList = [];
-        let currentPrompt = "";
+        let checkoutData = {}; // Stores the prompt and details for the item being checked out
 
         // --- Core Functions ---
         function showScreen(screenId) {
@@ -113,7 +152,11 @@ HTML_PAGE = """
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(data)
                 });
-                return await res.json();
+                let json = await res.json();
+                if(json.status === "error" && json.message.includes("Google")) {
+                    alert(json.message); // Alerts if Google is blocking the script
+                }
+                return json;
             } catch (err) {
                 alert("Network connection error.");
                 return {status: "error"};
@@ -127,16 +170,24 @@ HTML_PAGE = """
             document.getElementById('ai-stats').innerHTML = `Emotive Data Points: ${pts} | AI Confidence: <span style="color:${color}">${conf}%</span>`;
         }
 
-        function generatePrompt() {
-            let f = document.getElementById('flavor').value;
-            let theme = document.getElementById('theme').value;
-            let top = parseInt(document.getElementById('topping').value);
-            let txt = document.getElementById('custom-text').value.trim();
-            
+        function generatePrompt(f, top, theme, txt) {
             let textPrompt = txt ? `, featuring the exact text "${txt}" beautifully written on top in frosting` : '';
             let topDesc = top < 30 ? "smooth texture, minimal elegant decoration" : (top < 70 ? "decorated with fresh real toppings, piped frosting" : "maximalist, heavily loaded with rich toppings, intricate details");
-            
             return `A highly realistic 3D render of a ${f} cake, ${theme} style, ${topDesc}${textPrompt}, 8k resolution, cinematic lighting, professional bakery photography, isolated`;
+        }
+
+        function getBuilderData() {
+            return {
+                flavor: document.getElementById('flavor').value,
+                theme: document.getElementById('theme').value,
+                topping: parseInt(document.getElementById('topping').value),
+                text: document.getElementById('custom-text').value.trim()
+            };
+        }
+
+        // Helper to find most common item in array
+        function getMode(arr) {
+            return arr.sort((a,b) => arr.filter(v => v===a).length - arr.filter(v => v===b).length).pop();
         }
 
         // --- Button Actions ---
@@ -165,30 +216,102 @@ HTML_PAGE = """
             let img = document.getElementById('cake-preview');
             let btn = document.getElementById('render-btn');
             
-            currentPrompt = generatePrompt();
+            let d = getBuilderData();
+            let prompt = generatePrompt(d.flavor, d.topping, d.theme, d.text);
             
             img.classList.add('hidden');
             status.classList.remove('hidden');
             status.innerText = "⏳ Contacting Devse Cloud...";
             btn.disabled = true;
 
-            let res = await callCloud({action: "generate_image", prompt: currentPrompt});
+            let res = await callCloud({action: "generate_image", prompt: prompt});
             
             if(res.status === "success" && res.image_data) {
                 img.src = "data:image/jpeg;base64," + res.image_data;
                 img.classList.remove('hidden');
                 status.classList.add('hidden');
             } else {
-                status.innerText = "Render Error. Please try again.";
+                status.innerText = "Render Error. Check Google Apps Script Auth.";
             }
             btn.disabled = false;
         }
 
-        async function goToCheckout() {
-            let btn = document.getElementById('checkout-btn');
-            btn.innerText = "Fetching Bakeries...";
+        function trainAI() {
+            let d = getBuilderData();
+            orderHistory.push({topping_level: d.topping, flavor: d.flavor, theme: d.theme, text: d.text});
+            callCloud({action: "update_user", username: currentUser, history: JSON.stringify(orderHistory)});
+            updateConfidence();
             
-            if(!currentPrompt) currentPrompt = generatePrompt();
+            if (orderHistory.length >= 2) {
+                runRecommendations();
+            } else {
+                alert("Data captured! Need 1 more design to build AI profile.");
+            }
+        }
+
+        async function runRecommendations() {
+            showScreen('loading-screen');
+            let bar = document.getElementById('progress-bar');
+            bar.style.width = "0%";
+            
+            // Fake progress animation
+            setTimeout(() => bar.style.width = "40%", 500);
+            setTimeout(() => bar.style.width = "80%", 1000);
+            setTimeout(() => bar.style.width = "100%", 1500);
+
+            // Calculate AI profile
+            let avgTop = orderHistory.reduce((a, b) => a + b.topping_level, 0) / orderHistory.length;
+            let favFlavor = getMode(orderHistory.map(o => o.flavor));
+            let favTheme = getMode(orderHistory.map(o => o.theme));
+            let texts = orderHistory.filter(o => o.text).map(o => o.text);
+            let favText = texts.length > 0 ? texts[texts.length - 1] : "";
+
+            let p1 = generatePrompt(favFlavor, avgTop, favTheme, favText);
+            let p2 = generatePrompt(favFlavor, avgTop + 20, favTheme, favText);
+
+            // Save data to window for checkout/edit later
+            window.rec1Data = {flavor: favFlavor, topping: avgTop, theme: favTheme, text: favText, prompt: p1};
+            window.rec2Data = {flavor: favFlavor, topping: avgTop + 20, theme: favTheme, text: favText, prompt: p2};
+
+            document.getElementById('rec1-title').innerText = `Neural Match: ${favFlavor}`;
+
+            // Fetch images
+            setTimeout(async () => {
+                showScreen('recommendation-screen');
+                
+                // Fetch Rec 1
+                let res1 = await callCloud({action: "generate_image", prompt: p1});
+                if(res1.status === "success" && res1.image_data) {
+                    document.getElementById('rec1-img').src = "data:image/jpeg;base64," + res1.image_data;
+                    document.getElementById('rec1-img').classList.remove('hidden');
+                    document.getElementById('rec1-status').classList.add('hidden');
+                } else { document.getElementById('rec1-status').innerText = "Render Error"; }
+
+                // Fetch Rec 2
+                let res2 = await callCloud({action: "generate_image", prompt: p2});
+                if(res2.status === "success" && res2.image_data) {
+                    document.getElementById('rec2-img').src = "data:image/jpeg;base64," + res2.image_data;
+                    document.getElementById('rec2-img').classList.remove('hidden');
+                    document.getElementById('rec2-status').classList.add('hidden');
+                } else { document.getElementById('rec2-status').innerText = "Render Error"; }
+
+            }, 1600);
+        }
+
+        async function goToCheckout(source) {
+            // Set checkout data based on where they clicked
+            if (source === 'builder') {
+                let d = getBuilderData();
+                checkoutData = {...d, prompt: generatePrompt(d.flavor, d.topping, d.theme, d.text)};
+            } else if (source === 'rec1') {
+                checkoutData = window.rec1Data;
+            } else if (source === 'rec2') {
+                checkoutData = window.rec2Data;
+            }
+
+            let btn = event.target;
+            let originalText = btn.innerText;
+            btn.innerText = "Fetching...";
             
             let res = await callCloud({action: "get_bakeries"});
             if(res.status === "success" && res.bakeries.length > 0) {
@@ -205,7 +328,24 @@ HTML_PAGE = """
             } else {
                 alert("No bakeries currently registered on the platform.");
             }
-            btn.innerText = "Checkout & Order";
+            btn.innerText = originalText;
+        }
+
+        function editRec(num) {
+            let data = num === 1 ? window.rec1Data : window.rec2Data;
+            document.getElementById('flavor').value = data.flavor;
+            document.getElementById('theme').value = data.theme;
+            document.getElementById('topping').value = data.topping;
+            document.getElementById('custom-text').value = data.text;
+            
+            // Bring image over
+            let imgData = document.getElementById(`rec${num}-img`).src;
+            if(imgData && !imgData.includes("hidden")) {
+                document.getElementById('cake-preview').src = imgData;
+                document.getElementById('cake-preview').classList.remove('hidden');
+                document.getElementById('image-status').classList.add('hidden');
+            }
+            showScreen('builder-screen');
         }
 
         async function placeOrder() {
@@ -213,46 +353,32 @@ HTML_PAGE = """
             if(!address) return alert("Please enter a delivery address.");
             
             let bakeryId = document.getElementById('bakery-select').value;
-            let f = document.getElementById('flavor').value;
-            let theme = document.getElementById('theme').value;
-            let top = parseInt(document.getElementById('topping').value);
-            let txt = document.getElementById('custom-text').value.trim();
             
             document.getElementById('place-order-btn').innerText = "Sending...";
-            
-            // Sync history
-            orderHistory.push({topping_level: top, flavor: f, theme: theme, text: txt});
-            callCloud({action: "update_user", username: currentUser, history: JSON.stringify(orderHistory)});
-            updateConfidence();
             
             // Send Order
             let orderData = {
                 action: "place_order",
-                customer: currentUser, address: address, flavor: f, theme: theme, text: txt,
-                prompt: currentPrompt, time: new Date().toLocaleTimeString(), bakery_id: bakeryId
+                customer: currentUser, address: address, flavor: checkoutData.flavor, 
+                theme: checkoutData.theme, text: checkoutData.text,
+                prompt: checkoutData.prompt, time: new Date().toLocaleTimeString(), bakery_id: bakeryId
             };
             
             let res = await callCloud(orderData);
             if(res.status === "success") {
                 alert("Order confirmed! Routed to the bakery terminal.");
                 document.getElementById('address').value = "";
+                
+                // Clear the preview image
+                document.getElementById('cake-preview').classList.add('hidden');
+                document.getElementById('image-status').classList.remove('hidden');
+                document.getElementById('image-status').innerText = "Configure settings and click 'Render 3D Preview'";
+
                 showScreen('builder-screen');
             } else {
                 alert("Failed to send order.");
             }
             document.getElementById('place-order-btn').innerText = "Place Order";
-        }
-
-        function trainAI() {
-            let f = document.getElementById('flavor').value;
-            let theme = document.getElementById('theme').value;
-            let top = parseInt(document.getElementById('topping').value);
-            let txt = document.getElementById('custom-text').value.trim();
-            
-            orderHistory.push({topping_level: top, flavor: f, theme: theme, text: txt});
-            callCloud({action: "update_user", username: currentUser, history: JSON.stringify(orderHistory)});
-            updateConfidence();
-            alert("Data captured! Your AI profile is learning.");
         }
     </script>
 </body>
@@ -273,6 +399,15 @@ def proxy():
     try:
         req_data = request.json
         res = requests.post(APP_SCRIPT_URL, json=req_data, timeout=90)
+        
+        # SAFETY CHECK: Did Google return an HTML Error Page?
+        if "text/html" in res.headers.get("Content-Type", ""):
+            print("GOOGLE AUTH ERROR:", res.text) # Logs to Render console
+            return jsonify({
+                "status": "error", 
+                "message": "Backend Error: Google Apps Script requires authorization. Please 'Deploy as New Version' in your Google Apps Script editor."
+            })
+
         return jsonify(res.json())
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
