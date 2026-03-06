@@ -7,7 +7,7 @@ app = Flask(__name__)
 # ==========================================
 # CLOUD SETTINGS
 # ==========================================
-APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw3hFEiAXWzoxOrMiorWe8c642d9S76WxYmLgQBDQiCLcEyTHScxismgN0ZgfeUrefX/exec"
+APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwoCdyOrAcQSafTERbHkDsci3Ce-OEYmVDZXrlZrzBD4wx7x1iNN2yBa8JSozQhdBI/exec"
 
 # ==========================================
 # EMBEDDED FRONTEND (HTML/CSS/JS)
@@ -416,4 +416,5 @@ if __name__ == '__main__':
     # Binds to the port Render provides
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
+
 
